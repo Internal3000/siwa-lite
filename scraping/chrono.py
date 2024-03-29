@@ -1,6 +1,8 @@
 from typing import List
 from bs4 import BeautifulSoup
 from base_scraper import BaseScraper
+import schedule
+import time
 
 
 class Chrono24Scraper(BaseScraper):
@@ -27,31 +29,45 @@ class Chrono24Scraper(BaseScraper):
         """
         super().__init__()
 
-    def extract_data(self, response):
-        """
-        Extracts data from the page.
-
-        Parameters:
-        ----------
-        response : requests.Response
-            The HTTP response object.
-
-        Returns:
-        -------
-        Tuple[List[Tag], List[Tag], List[Tag]]
-            A tuple containing lists of Beautiful Soup tags for titles, prices, and marks.
-        """
+    def extract_data(cls, response):
         soup = BeautifulSoup(response.content, "html.parser")
+
+        # Extract titles as before
         titles = soup.find_all(
             "div", class_="text-sm text-sm-md text-bold text-ellipsis"
         )
-        prices = soup.find_all("span", class_="currency")
+
+        # Attempt to find all 'text-bold' elements
+        all_bold_elements = soup.find_all("div", class_="text-bold")
+
+        # Filter out those 'text-bold' elements that contain a 'span' with class 'currency'
+        prices = [
+            elem for elem in all_bold_elements if elem.find("span", class_="currency")
+        ]
+
+        # Assuming your logic for marks remains unchanged
         marks = soup.find_all("div", class_="text-sm text-sm-md text-ellipsis m-b-2")
+
         return titles, prices, marks
 
 
-if __name__ == "__main__":
+def job():
+    """
+    The job to run periodically.
+    """
     scraper = Chrono24Scraper()
-    base_url = "https://www.chrono24.com/rolex/index-{}.htm?query=Rolex"
+    base_url = "https://www.chrono24.com/rolex/index-{}.htm?query=Rolex+Submariner&goal_suggest=1"
     scraper.scrape_all_pages(base_url)
     scraper.save_to_csv(filename="chrono24.csv", include_mark=True)
+    print("Scraper run complete.")
+
+
+if __name__ == "__main__":
+    # Schedule the job every 10 minutes
+    schedule.every(10).minutes.do(job)
+
+    print("Scheduler started.")
+    # Keep running in a loop.
+    while True:
+        schedule.run_pending()
+        time.sleep(1)

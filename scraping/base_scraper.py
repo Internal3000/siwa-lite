@@ -5,6 +5,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import pandas as pd
 import time
+import os
+from datetime import datetime
 
 
 class BaseScraper:
@@ -50,14 +52,16 @@ class BaseScraper:
         """
         response = cls.http.get(url, headers=cls.headers)
         if response.status_code == 200:
-            extract = cls.extract_data(response)
+            titles, prices, marks = cls.extract_data(
+                response
+            )  # Unpack the returned tuple
 
-            min_length = min(len(extract[0]), len(extract[1]))
+            min_length = min(len(titles), len(prices), len(marks))
 
             for i in range(min_length):
-                title = extract[0][i].text.strip()
-                price = extract[1][i].text.strip()
-                mark = extract[2][i].text.strip() if len(extract) > 2 else None
+                title = titles[i].text.strip() if titles else None
+                price = prices[i].text.strip() if prices else None
+                mark = marks[i].text.strip() if marks else None
                 cls.data.append(
                     {"Watch_Name": title, "Price": price, "Watch_Mark": mark}
                 )
@@ -90,7 +94,7 @@ class BaseScraper:
         None
         """
         page_number = start_page
-        while True:
+        while page_number <= 156:
             url = base_url.format(page_number)
             try:
                 response = self.http.get(url, headers=self.headers, verify=False)
@@ -111,23 +115,24 @@ class BaseScraper:
 
     def save_to_csv(self, filename: str, include_mark: bool = True) -> None:
         """
-        Saves scraped data to a CSV file.
-
-        Parameters:
-        ----------
-        filename : str
-            The name of the CSV file.
-        include_mark : bool, optional
-            Whether to include the "Watch_Mark" column, by default True.
-
-        Returns:
-        -------
-        None
+        Updated to append data to CSV if file exists, else create new.
         """
-        columns = ["Watch_Name", "Price"]
+        if not self.data:
+            logging.error("No data to save.")
+            return
+
+        for row in self.data:
+            row["Datetime"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        columns = ["Watch_Name", "Price", "Datetime"]
         if include_mark:
             columns.append("Watch_Mark")
 
         df = pd.DataFrame(self.data, columns=columns)
-        df.to_csv(filename)
-        logging.info(f"Data saved to {filename}")
+
+        if os.path.exists(filename):
+            df.to_csv(filename, mode="a", header=False, index=False)
+        else:
+            df.to_csv(filename, index=False)
+
+        logging.info(f"Data appended to {filename}")
