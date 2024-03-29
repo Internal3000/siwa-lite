@@ -8,28 +8,31 @@ class DerivativeSymbolsFetcher:
     def __init__(self, exchange):
         self.exchange = exchange
 
-    def fetch_symbols(self, market_type='all', base='BTC', quote='USD'):
+    def fetch_symbols(self, market_type="all", base="BTC", quote="USD"):
         self.exchange.load_markets()
         markets_df = pd.DataFrame(self.exchange.markets).transpose()
 
-        markets_df = markets_df[(markets_df['base'] == base) & (markets_df['quote'] == quote)]
-        markets_df = markets_df[markets_df['symbol'].str.contains(f"{base}/{quote}")]
+        markets_df = markets_df[
+            (markets_df["base"] == base) & (markets_df["quote"] == quote)
+        ]
+        markets_df = markets_df[markets_df["symbol"].str.contains(f"{base}/{quote}")]
 
-        symbols = {
-            'futures': [],
-            'options': []
-        }
+        symbols = {"futures": [], "options": []}
 
-        if market_type in ['all', 'futures']:
-            symbols['futures'] = markets_df[markets_df['type'] == 'future']['symbol'].tolist()
+        if market_type in ["all", "futures.py"]:
+            symbols["futures"] = markets_df[markets_df["type"] == "future"][
+                "symbol"
+            ].tolist()
 
-        if market_type in ['all', 'options']:
-            if self.exchange.id == 'binance':
-                symbols['options'] = self.fetch_binance_options_symbols()
+        if market_type in ["all", "options"]:
+            if self.exchange.id == "binance":
+                symbols["options"] = self.fetch_binance_options_symbols()
             else:
-                symbols['options'] = markets_df[markets_df['type'] == 'option']['symbol'].tolist()
+                symbols["options"] = markets_df[markets_df["type"] == "option"][
+                    "symbol"
+                ].tolist()
 
-        return symbols if market_type == 'all' else symbols[market_type]
+        return symbols if market_type == "all" else symbols[market_type]
 
     @staticmethod
     def fetch_binance_options_symbols():

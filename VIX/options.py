@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 
+
 class OptionFetcher:
     def __init__(self, exchange):
         self.exchange = exchange
@@ -112,4 +113,3 @@ class OptionFetcher:
         strike_price = parts[-2]
         option_type = parts[-1]
         return strike_price, option_type
-
