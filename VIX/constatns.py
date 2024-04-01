@@ -4,3 +4,7 @@ BINANCE_API_SPOT_URL = "https://api.binance.com"
 ByBit_API_URL = "https://api.bybit.com/v2/public/symbols"
 OKX_API_URL = "https://www.okex.com/api/spot/v3/instruments"
 KRAKEN_API_URL = "https://api.kraken.com/0/public/AssetPairs"
+SPREAD_MULTIPLIER = 10
+SPREAD_MIN = 0.0005
+RANGE_MULT = 2.5
+Index_Maturity = 30

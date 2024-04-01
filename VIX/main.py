@@ -1,19 +1,29 @@
 import ccxt
 import pandas as pd
 
+from VIX.filtering import Filtering
 from VIX.futures import FutureFetcher
 from VIX.options import OptionFetcher
+from VIX.processing import Processing
 from VIX.symbols import DerivativeSymbolsFetcher
 
 
 def main(markets):
     options_df = pd.DataFrame()
-    implied_interest_rates_df = pd.DataFrame()
+    futures_df = pd.DataFrame()
 
     for market in markets:
+        """Process the data for each market and concatenate
+        the results to create global orderbook for options and implied interest rates (futures).
+        """
         options, implied_interest_rates = process_data_for_market(market)
         options_df = pd.concat([options_df, options])
-        implied_interest_rates_df = pd.concat([implied_interest_rates_df, implied_interest_rates])
+        futures_df = pd.concat([futures_df, implied_interest_rates])
+
+    near_term, next_term = Filtering().filter(options_df)
+    next_term.to_csv("next_term.csv")
+    calculate_wij_near_term = Processing().calculate_wij(near_term, futures_df)
+    calculate_wij_near_term.to_csv("calculate_wij_near_term.csv")
 
 
 def process_data_for_market(market):
@@ -22,17 +32,17 @@ def process_data_for_market(market):
     else:
         exchange = getattr(ccxt, market)()
 
-        '''First, we fetch the symbols for futures and options markets.'''
+        """First, we fetch the symbols for futures and options markets."""
         derived_markets_symbols = DerivativeSymbolsFetcher(exchange)
         contracts_symbols = derived_markets_symbols.fetch_symbols(market_type="all")
 
-        '''Next, we fetch the options and implied interest rates for the futures contracts.'''
+        """Next, we fetch the options and implied interest rates for the futures contracts."""
         futures = FutureFetcher(exchange)
         implied_interest_rates = futures.fetch_all_implied_interest_rates(
             contracts_symbols["futures"]
         )
 
-        '''Finally, we fetch the options data for the options contracts.'''
+        """Finally, we fetch the options data for the options contracts."""
         option = OptionFetcher(exchange)
         options = option.fetch_all_options(contracts_symbols["options"])
 
@@ -40,7 +50,7 @@ def process_data_for_market(market):
 
 
 if __name__ == "__main__":
-    markets = ["binance", "okx", "deribit"]
+    markets = ["okx", "deribit"]
     try:
         main(markets)
     except ValueError as e:

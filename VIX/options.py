@@ -17,39 +17,57 @@ class OptionFetcher:
         elif self.exchange.id == "binance":
             return self.process_data(df, "binance")
         else:
-            raise ValueError(f"Exchange '{self.exchange.id}' is not supported for options.")
+            raise ValueError(
+                f"Exchange '{self.exchange.id}' is not supported for options."
+            )
 
     def process_data(self, df: pd.DataFrame, exchange_type: str) -> pd.DataFrame:
-        if exchange_type == 'deribit':
+        if exchange_type == "deribit":
             info_df = pd.json_normalize(df["info"])
             df = df.reset_index(drop=True)
-            df["mark_price"] = pd.to_numeric(info_df["mark_price"], errors="coerce").fillna(0.0)
-            underlying_prices = pd.to_numeric(info_df["underlying_price"], errors="coerce").fillna(0.0)
+            df["mark_price"] = pd.to_numeric(
+                info_df["mark_price"], errors="coerce"
+            ).fillna(0.0)
+            underlying_prices = pd.to_numeric(
+                info_df["underlying_price"], errors="coerce"
+            ).fillna(0.0)
             df["bid"] *= underlying_prices
             df["ask"] *= underlying_prices
             df["mark_price"] *= underlying_prices
 
-        elif exchange_type == 'okx':
-            response = requests.get("https://www.okx.com/api/v5/public/mark-price?instType=OPTION")
+        elif exchange_type == "okx":
+            response = requests.get(
+                "https://www.okx.com/api/v5/public/mark-price?instType=OPTION"
+            )
             mark_prices = response.json()["data"]
             mark_prices_df = pd.DataFrame(mark_prices)
-            mark_prices_df["symbol"] = mark_prices_df["instId"].apply(self.convert_inst_id_to_symbol)
+            mark_prices_df["symbol"] = mark_prices_df["instId"].apply(
+                self.convert_inst_id_to_symbol
+            )
             mark_prices_df.rename(columns={"markPx": "mark_price"}, inplace=True)
             df["underlying_price"] = self.exchange.fetch_ticker("BTC/USDT")["last"]
             df["bid"] *= df["underlying_price"]
             df["ask"] *= df["underlying_price"]
-            df = df.merge(mark_prices_df[["symbol", "mark_price"]], on="symbol", how="left")
-            df["mark_price"] = pd.to_numeric(df["mark_price"], errors="coerce").fillna(0.0)
+            df = df.merge(
+                mark_prices_df[["symbol", "mark_price"]], on="symbol", how="left"
+            )
+            df["mark_price"] = pd.to_numeric(df["mark_price"], errors="coerce").fillna(
+                0.0
+            )
             df["mark_price"] *= df["underlying_price"]
 
-        elif exchange_type == 'binance':
+        elif exchange_type == "binance":
             df["symbol"] = df["symbol"].apply(self.convert_usdt_to_usd)
             df["bid"] = df["info"].apply(lambda x: float(x.get("bidPrice", 0)))
             df["ask"] = df["info"].apply(lambda x: float(x.get("askPrice", 0)))
             mark_price = self.binance_fetcher.fetch_mark_price_options()
-            mark_price["symbol"] = mark_price["symbol"].apply(self.transform_symbol_format)
+            mark_price["symbol"] = mark_price["symbol"].apply(
+                self.transform_symbol_format
+            )
             mark_price.rename(columns={"markPrice": "mark_price"}, inplace=True)
-            mark_price["mark_price"] = pd.to_numeric(mark_price["mark_price"], errors="coerce").fillna(0.0)
+            mark_price["mark_price"] = pd.to_numeric(
+                mark_price["mark_price"], errors="coerce"
+            ).fillna(0.0)
             df = df.merge(mark_price, on="symbol", how="left")
 
         df["bid"] = pd.to_numeric(df["bid"], errors="coerce").fillna(0.0)
