@@ -50,7 +50,7 @@ def process_data_for_market(market):
 
 
 if __name__ == "__main__":
-    markets = ["okx", "deribit"]
+    markets = ["okx", "deribit", "binance"]
     try:
         main(markets)
     except ValueError as e:

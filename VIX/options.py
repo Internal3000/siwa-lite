@@ -1,6 +1,8 @@
 import pandas as pd
 import requests
 
+from VIX.constatns import BINANCE_API_OPTIONS_URL
+
 
 class OptionFetcher:
     def __init__(self, exchange):
@@ -103,3 +105,14 @@ class OptionFetcher:
         strike_price = parts[-2]
         option_type = parts[-1]
         return strike_price, option_type
+
+    @staticmethod
+    def fetch_mark_price_options():
+        response = requests.get(BINANCE_API_OPTIONS_URL + "/eapi/v1/mark")
+        mark_prices_options = response.json()
+        mark_prices_options_df = pd.DataFrame(mark_prices_options)
+        mark_prices_options_df = mark_prices_options_df.loc[
+            mark_prices_options_df["symbol"].str.contains("BTC-")
+        ]
+
+        return mark_prices_options_df

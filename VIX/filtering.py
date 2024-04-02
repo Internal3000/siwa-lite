@@ -25,31 +25,26 @@ class Filtering:
 
     @staticmethod
     def consolidate_option_quotes(df):
-        df.to_csv('consolidate_option_quotes.csv')
-        df['asset'] = df['symbol'].apply(lambda x: x.split(':')[0])
-        df['expiry'] = df['symbol'].apply(lambda x: x.split('-')[1])
-        df['strike_price'] = df['symbol'].apply(lambda x: x.split('-')[2]).astype(float)
-        df['option_type'] = df['symbol'].apply(lambda x: x.split('-')[3])
-        df['spread'] = df['ask'] - df['bid']
+        '''
+        • Select quotes: maximum of bids and minimum of asks available.
+        • Select mark prices: mark price of the option with smallest bid/ask
+        spread.
+        '''
+        df.to_csv("df.csv")
+        df = df.copy()
+        df.sort_values(by=["symbol", "bid"], inplace=True)
+        df["bid"] = df["bid"].astype(float)
+        df["ask"] = df["ask"].astype(float)
+        df["spread"] = df["ask"] - df["bid"]
+        df = df.groupby("symbol").agg(
+            bid=("bid", "max"),
+            ask=("ask", "min"),
+            spread=("spread", "min"),
+            mark_price=("mark_price", "first"),
+            expiry=("expiry", "first"),
+        ).reset_index()
 
-        grouped = df.groupby(['asset', 'expiry', 'strike_price', 'option_type'])
-
-        consolidated_quotes = grouped.agg(max_bid=('bid', 'max'),
-                                          min_ask=('ask', 'min'),
-                                          smallest_spread=('spread', 'min')).reset_index()
-        consolidated_quotes = consolidated_quotes.merge(
-            df[['asset', 'expiry', 'strike_price', 'option_type', 'mark_price', 'spread']],
-            on=['asset', 'expiry', 'strike_price', 'option_type'],
-            how='left')
-        consolidated_quotes = consolidated_quotes[
-            consolidated_quotes['spread'] == consolidated_quotes['smallest_spread']]
-        consolidated_quotes.drop_duplicates(subset=['asset', 'expiry', 'strike_price', 'option_type'],
-                                            keep='first', inplace=True)
-        consolidated_quotes.drop(columns=['smallest_spread', 'spread'], inplace=True)
-        consolidated_quotes.rename(columns={'max_bid': 'bid', 'min_ask': 'ask'}, inplace=True)
-
-        consolidated_quotes.to_csv('consolidated_quotes_1.csv')
-        return consolidated_quotes
+        return df[["symbol", "bid", "ask", "mark_price", "expiry"]]
 
     @staticmethod
     def filter_near_next_term_options(df, index_maturity_days=30):
@@ -159,7 +154,7 @@ class Filtering:
 
         '''Filter near term and next term options with index maturity days = 30.'''
         near_term_options, next_term_options = self.filter_near_next_term_options(
-            consolidate_option_quotes
+            valid_options_df
         )
 
         '''Eliminate large spreads from near term and next term options.'''
@@ -167,6 +162,7 @@ class Filtering:
             self.eliminate_large_spreads(near_term_options),
             self.eliminate_large_spreads(next_term_options),
         )
+
         '''Calculate implied forward price for near and next term options.'''
         implied_forward_price_near_term, implied_forward_price_next_term = (
             self.calculate_implied_forward_price(eliminate_large_spreads_near_term),
