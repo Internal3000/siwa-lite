@@ -25,24 +25,30 @@ class Filtering:
 
     @staticmethod
     def consolidate_option_quotes(df):
+        df.to_csv('consolidate_option_quotes.csv')
         df['asset'] = df['symbol'].apply(lambda x: x.split(':')[0])
-        df['expiry_date'] = df['symbol'].apply(lambda x: x.split('-')[1])
+        df['expiry'] = df['symbol'].apply(lambda x: x.split('-')[1])
         df['strike_price'] = df['symbol'].apply(lambda x: x.split('-')[2]).astype(float)
         df['option_type'] = df['symbol'].apply(lambda x: x.split('-')[3])
         df['spread'] = df['ask'] - df['bid']
-        grouped = df.groupby(['asset', 'expiry_date', 'strike_price', 'option_type'])
+
+        grouped = df.groupby(['asset', 'expiry', 'strike_price', 'option_type'])
+
         consolidated_quotes = grouped.agg(max_bid=('bid', 'max'),
                                           min_ask=('ask', 'min'),
                                           smallest_spread=('spread', 'min')).reset_index()
         consolidated_quotes = consolidated_quotes.merge(
-            df[['asset', 'expiry_date', 'strike_price', 'option_type', 'mark_price', 'spread']],
-            on=['asset', 'expiry_date', 'strike_price', 'option_type'],
+            df[['asset', 'expiry', 'strike_price', 'option_type', 'mark_price', 'spread']],
+            on=['asset', 'expiry', 'strike_price', 'option_type'],
             how='left')
         consolidated_quotes = consolidated_quotes[
             consolidated_quotes['spread'] == consolidated_quotes['smallest_spread']]
         consolidated_quotes.drop_duplicates(subset=['asset', 'expiry', 'strike_price', 'option_type'],
                                             keep='first', inplace=True)
         consolidated_quotes.drop(columns=['smallest_spread', 'spread'], inplace=True)
+        consolidated_quotes.rename(columns={'max_bid': 'bid', 'min_ask': 'ask'}, inplace=True)
+
+        consolidated_quotes.to_csv('consolidated_quotes_1.csv')
         return consolidated_quotes
 
     @staticmethod
@@ -145,23 +151,32 @@ class Filtering:
         return otm_final
 
     def filter(self, options_df: pd.DataFrame) -> tuple[DataFrame, DataFrame]:
+        '''Firstly eliminate invalid quotes, like ask < bid, mark_price < bid, mark_price > ask, mark_price < 0.'''
         valid_options_df = self.eliminate_invalid_quotes(options_df)
+
+        '''Consolidate option quotes by asset, expiry, strike price, and option type.'''
         consolidate_option_quotes = self.consolidate_option_quotes(valid_options_df)
 
+        '''Filter near term and next term options with index maturity days = 30.'''
         near_term_options, next_term_options = self.filter_near_next_term_options(
             consolidate_option_quotes
         )
-        eliminate_large_spreads_near_term = self.eliminate_large_spreads(
-            near_term_options
+
+        '''Eliminate large spreads from near term and next term options.'''
+        eliminate_large_spreads_near_term, eliminate_large_spreads_next_term = (
+            self.eliminate_large_spreads(near_term_options),
+            self.eliminate_large_spreads(next_term_options),
         )
-        eliminate_large_spreads_next_term = self.eliminate_large_spreads(
-            next_term_options
+        '''Calculate implied forward price for near and next term options.'''
+        implied_forward_price_near_term, implied_forward_price_next_term = (
+            self.calculate_implied_forward_price(eliminate_large_spreads_near_term),
+            self.calculate_implied_forward_price(eliminate_large_spreads_next_term),
         )
-        calculate_implied_forward_price_near_term = (
-            self.calculate_implied_forward_price(eliminate_large_spreads_near_term)
-        )
-        filter_and_sort_options_near_term = self.filter_and_sort_options(
-            eliminate_large_spreads_near_term, calculate_implied_forward_price_near_term
+        '''Filter and sort near and next term options with OTM options.'''
+
+        filter_and_sort_options_near_term, filter_and_sort_options_next_term = (
+            self.filter_and_sort_options(eliminate_large_spreads_near_term, implied_forward_price_near_term),
+            self.filter_and_sort_options(eliminate_large_spreads_next_term, implied_forward_price_next_term),
         )
 
-        return eliminate_large_spreads_near_term, eliminate_large_spreads_next_term
+        return filter_and_sort_options_near_term, filter_and_sort_options_next_term
