@@ -42,40 +42,6 @@ class Processing:
 
         return interest_rate_term_structure
 
-    @staticmethod
-    def filter_and_sort_options(df, Fimp):
-        KATM = df[df["strike"] < Fimp]["strike"].max()
-        RANGE_MULT = 2.5
-        Kmin = Fimp / RANGE_MULT
-        Kmax = Fimp * RANGE_MULT
-        calls_otm = df[(df["strike"] > KATM) & (df["option_type"] == "C")]
-        puts_otm = df[(df["strike"] < KATM) & (df["option_type"] == "P")]
-        otm_combined = pd.concat([calls_otm, puts_otm])
-        otm_filtered = otm_combined[
-            (otm_combined["strike"] > Kmin) & (otm_combined["strike"] < Kmax)
-        ]
-        otm_sorted = otm_filtered.sort_values(by="strike")
-        tick_size = df[df["bid"] > 0]["bid"].min()
-        consecutive_threshold = 5
-        consecutive_count = 0
-        to_drop = []
-        for index, row in otm_sorted.iterrows():
-            if row["bid"] <= tick_size:
-                consecutive_count += 1
-                to_drop.append(index)
-            else:
-                consecutive_count = 0
-            if consecutive_count >= consecutive_threshold:
-                break
-        otm_final = otm_sorted.drop(to_drop)
-        otm_final["Fimp"] = Fimp
-        otm_final["KATM"] = KATM
-        current_date = datetime.now()
-        otm_final["years_to_expiry"] = (
-            otm_final["expiry"] - current_date
-        ).dt.days / 365.25
-
-        return otm_final
 
     @staticmethod
     def calculate_wij(options_df, futures_df):
@@ -104,6 +70,10 @@ class Processing:
 
     @staticmethod
     def calculate_sigma_it_squared_for_all(w_ij_df):
+
+        """
+        wi,j = e^(riTj) ΔKj/Kj^2
+        """
         T_i = w_ij_df["years_to_expiry"].mean()
         F_i = w_ij_df["Fimp"].mean()
         K_i_ATM = w_ij_df["KATM"].mean()
@@ -143,18 +113,3 @@ class Processing:
         )
 
         return interpolated_rates_df
-
-    @staticmethod
-    def calculate_delta_K(df):
-        df = df.sort_values(by="strike").reset_index(drop=True)
-        print(df)
-        delta_K = pd.Series(dtype=float)
-        delta_K[0] = df.loc[1, "strike"] - df.loc[0, "strike"]
-        delta_K[df.index[-1]] = (
-            df.loc[df.index[-1], "strike"] - df.loc[df.index[-1] - 1, "strike"]
-        )
-
-        for i in range(1, len(df) - 1):
-            delta_K[i] = (df.loc[i + 1, "strike"] - df.loc[i - 1, "strike"]) / 2
-
-        return delta_K

@@ -10,6 +10,12 @@ from VIX.constatns import SPREAD_MULTIPLIER, SPREAD_MIN
 class Filtering:
     @staticmethod
     def eliminate_invalid_quotes(df):
+        """
+        Eliminate invalid quotes under the following scenarios:
+            • Negative bid/ask spread
+            • Mark price is out of bid/ask range6
+            • Mark price is not positive.
+        """
         df_filtered = df[
             (df["ask"] > df["bid"])
             & (df["mark_price"] >= df["bid"])
@@ -48,6 +54,13 @@ class Filtering:
 
     @staticmethod
     def filter_near_next_term_options(df, index_maturity_days=30):
+        """
+        Select near and next-term options:
+            • Near-term: Options with longest maturity that is less than or equal
+            to index maturity
+            • Next-term: Options with shortest maturity that is more than index
+            maturity
+        """
         df["expiry"] = pd.to_datetime(df["expiry"])
         today = datetime.now()
         df["maturity_days"] = (df["expiry"] - today).dt.days
@@ -66,6 +79,18 @@ class Filtering:
 
     @staticmethod
     def eliminate_large_spreads(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate bid spread as the difference between mark price and bid
+        price. Set the bid spread to zero if negative.
+            • Calculate ask spread as the difference between ask price and mark
+            price. Set the ask spread to zero if negative.
+            • Calculate spread as the sum of bid and ask spreads.
+            • Calculate the maximum allowed spread (MAS) as the minimum of
+            bid and ask spreads, multiplied by SPREAD MULTIPLIER9
+            .
+            • Calculate the global maximum spread (GMS) as SPREAD MIN10 multiplied by SPREAD MULTIPLIER
+            • Remove the quote if its spread is greater than both GMS and MAS.
+        """
         df = df.copy()
         df["bid_spread"] = df["mark_price"] - df["bid"]
         df["ask_spread"] = df["ask"] - df["mark_price"]
@@ -90,6 +115,17 @@ class Filtering:
 
     @staticmethod
     def calculate_implied_forward_price(df):
+        """
+        Calculate the implied forward price of the strike that has minimum
+        absolute mid-price difference between call and put options, for near and
+        next-term options:
+
+        Fimp = K +F ×(C −P)
+
+        where F is the forward price,
+        C is the call option price, P is put option price, and both options are
+        quoted in the amounts of underlying.
+        """
         calls = df[df["option_type"] == "C"]
         puts = df[df["option_type"] == "P"]
         combined = calls[["strike", "mid_price"]].merge(
@@ -146,6 +182,8 @@ class Filtering:
         return otm_final
 
     def filter(self, options_df: pd.DataFrame) -> tuple[DataFrame, DataFrame]:
+
+        options_df.to_csv("raw_options.csv")
         '''Firstly eliminate invalid quotes, like ask < bid, mark_price < bid, mark_price > ask, mark_price < 0.'''
         valid_options_df = self.eliminate_invalid_quotes(options_df)
 

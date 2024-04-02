@@ -78,6 +78,6 @@ class FutureFetcher:
         return rates_data
 
 
-def mean_implied_interest_rate(implied_interest_rates_df: pd.DataFrame) -> float:
+def mean_implied_interest_rate(implied_interest_rates_df: pd.DataFrame) -> pd.DataFrame:
     """Calculate the mean implied interest rate for same expiry contracts."""
-    return implied_interest_rates_df["implied_interest_rate"].mean()
+    return implied_interest_rates_df.groupby('expiry')['implied_interest_rate'].mean().reset_index()

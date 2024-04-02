@@ -2,7 +2,7 @@ import ccxt
 import pandas as pd
 
 from VIX.filtering import Filtering
-from VIX.futures import FutureFetcher
+from VIX.futures import FutureFetcher, mean_implied_interest_rate
 from VIX.options import OptionFetcher
 from VIX.processing import Processing
 from VIX.symbols import DerivativeSymbolsFetcher
@@ -20,10 +20,9 @@ def main(markets):
         options_df = pd.concat([options_df, options])
         futures_df = pd.concat([futures_df, implied_interest_rates])
 
+    futures_df = mean_implied_interest_rate(futures_df)
     near_term, next_term = Filtering().filter(options_df)
-    next_term.to_csv("next_term.csv")
     calculate_wij_near_term = Processing().calculate_wij(near_term, futures_df)
-    calculate_wij_near_term.to_csv("calculate_wij_near_term.csv")
 
 
 def process_data_for_market(market):
