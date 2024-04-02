@@ -62,7 +62,7 @@ class OptionFetcher:
             df["symbol"] = df["symbol"].apply(self.convert_usdt_to_usd)
             df["bid"] = df["info"].apply(lambda x: float(x.get("bidPrice", 0)))
             df["ask"] = df["info"].apply(lambda x: float(x.get("askPrice", 0)))
-            mark_price = self.binance_fetcher.fetch_mark_price_options()
+            mark_price = self.fetch_mark_price_options()
             mark_price["symbol"] = mark_price["symbol"].apply(
                 self.transform_symbol_format
             )
