@@ -36,7 +36,6 @@ class Filtering:
         • Select mark prices: mark price of the option with smallest bid/ask
         spread.
         '''
-        df.to_csv("df.csv")
         df = df.copy()
         df.sort_values(by=["symbol", "bid"], inplace=True)
         df["bid"] = df["bid"].astype(float)
@@ -182,8 +181,6 @@ class Filtering:
         return otm_final
 
     def filter(self, options_df: pd.DataFrame) -> tuple[DataFrame, DataFrame]:
-
-        options_df.to_csv("raw_options.csv")
         '''Firstly eliminate invalid quotes, like ask < bid, mark_price < bid, mark_price > ask, mark_price < 0.'''
         valid_options_df = self.eliminate_invalid_quotes(options_df)
 
