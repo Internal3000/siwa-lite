@@ -181,22 +181,29 @@ class Filtering:
         return otm_final
 
     def filter(self, options_df: pd.DataFrame) -> tuple[DataFrame, DataFrame]:
+        print(f"Length of options: {len(options_df)}")
         '''Firstly eliminate invalid quotes, like ask < bid, mark_price < bid, mark_price > ask, mark_price < 0.'''
         valid_options_df = self.eliminate_invalid_quotes(options_df)
+        print(f"Length of valid options: {len(valid_options_df)}")
 
         '''Consolidate option quotes by asset, expiry, strike price, and option type.'''
         consolidate_option_quotes = self.consolidate_option_quotes(valid_options_df)
+        print(f"Length of consolidated options: {len(consolidate_option_quotes)}")
 
         '''Filter near term and next term options with index maturity days = 30.'''
         near_term_options, next_term_options = self.filter_near_next_term_options(
-            valid_options_df
+            consolidate_option_quotes
         )
+        print(f"Length of near term options: {len(near_term_options)}")
+        print(f"Length of next term options: {len(next_term_options)}")
 
         '''Eliminate large spreads from near term and next term options.'''
         eliminate_large_spreads_near_term, eliminate_large_spreads_next_term = (
             self.eliminate_large_spreads(near_term_options),
             self.eliminate_large_spreads(next_term_options),
         )
+        print(f"Length eliminate large spreads near term: {len(eliminate_large_spreads_near_term)}")
+        print(f"Length eliminate large spreads next term: {len(eliminate_large_spreads_next_term)}")
 
         '''Calculate implied forward price for near and next term options.'''
         implied_forward_price_near_term, implied_forward_price_next_term = (
@@ -204,10 +211,15 @@ class Filtering:
             self.calculate_implied_forward_price(eliminate_large_spreads_next_term),
         )
         '''Filter and sort near and next term options with OTM options.'''
+        print(f"Implied forward price near term: {implied_forward_price_near_term}")
+        print(f"Implied forward price next term: {implied_forward_price_next_term}")
 
         filter_and_sort_options_near_term, filter_and_sort_options_next_term = (
             self.filter_and_sort_options(eliminate_large_spreads_near_term, implied_forward_price_near_term),
             self.filter_and_sort_options(eliminate_large_spreads_next_term, implied_forward_price_next_term),
         )
+
+        print(f"Length filter and sort options near term: {len(filter_and_sort_options_near_term)}")
+        print(f"Length filter and sort options next term: {len(filter_and_sort_options_next_term)}")
 
         return filter_and_sort_options_near_term, filter_and_sort_options_next_term
