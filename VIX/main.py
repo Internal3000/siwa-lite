@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import ccxt
 import pandas as pd
 
@@ -21,7 +23,16 @@ def main(markets):
         futures_df = pd.concat([futures_df, implied_interest_rates])
 
     futures_df = mean_implied_interest_rate(futures_df)
-    near_term, next_term = Filtering().filter(options_df)
+    options_df["expiry"] = options_df["symbol"].apply(
+        lambda x: datetime.strptime(x.split("-")[1], "%y%m%d")
+    )
+    futures_df["expiry"] = futures_df["expiry"].apply(
+        lambda x: datetime.strptime(x, "%Y-%m-%d")
+    )
+
+    global_orderbook = pd.merge(futures_df, options_df, on="expiry", how="outer")
+
+    near_term, next_term = Filtering().filter(global_orderbook)
     calculate_wij_near_term = Processing().calculate_wij(near_term, futures_df)
 
 

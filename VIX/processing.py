@@ -42,7 +42,6 @@ class Processing:
 
         return interest_rate_term_structure
 
-
     @staticmethod
     def calculate_wij(options_df, futures_df):
         futures_df["expiry"] = pd.to_datetime(futures_df["expiry"])
@@ -70,7 +69,6 @@ class Processing:
 
     @staticmethod
     def calculate_sigma_it_squared_for_all(w_ij_df):
-
         """
         wi,j = e^(riTj) ΔKj/Kj^2
         """

@@ -9,7 +9,7 @@ class FutureFetcher:
         """Initialize with an exchange object to fetch market data."""
         self.exchange = exchange
 
-    def fetch_future_orderbook(self, symbol: str) -> Dict[str, any]:
+    def fetch_forward_price_and_expiry(self, symbol: str) -> Dict[str, any]:
         """Fetch the future orderbook for a symbol and calculate the forward price."""
         try:
             order_book = self.exchange.fetch_order_book(symbol)
@@ -40,12 +40,12 @@ class FutureFetcher:
 
     def fetch_implied_interest_rate(self, symbol: str) -> Dict[str, any]:
         """Calculate the implied interest rate for a future contract."""
-        orderbook = self.fetch_future_orderbook(symbol)
-        if not orderbook:
+        fp_e = self.fetch_forward_price_and_expiry(symbol)
+        if not fp_e:
             return {}
 
-        forward_price = orderbook["forward_price"]
-        expiry_date = datetime.strptime(orderbook["expiry"], "%y%m%d")
+        forward_price = fp_e["forward_price"]
+        expiry_date = datetime.strptime(fp_e["expiry"], "%y%m%d")
         today = datetime.now()
         days_to_expiry = (expiry_date - today).days
         years_to_expiry = days_to_expiry / 365.25
@@ -59,9 +59,9 @@ class FutureFetcher:
             ) / years_to_expiry
 
         return {
-            "expiry": orderbook["expiry"],
+            "expiry": fp_e["expiry"],
             "implied_interest_rate": implied_interest_rate,
-            "years_to_expiry": years_to_expiry,
+            "forward_price": forward_price,
         }
 
     def fetch_all_implied_interest_rates(self, symbols: List[str]) -> pd.DataFrame:
@@ -80,4 +80,8 @@ class FutureFetcher:
 
 def mean_implied_interest_rate(implied_interest_rates_df: pd.DataFrame) -> pd.DataFrame:
     """Calculate the mean implied interest rate for same expiry contracts."""
-    return implied_interest_rates_df.groupby('expiry')['implied_interest_rate'].mean().reset_index()
+    return (
+        implied_interest_rates_df.groupby("expiry")
+        .agg({"implied_interest_rate": "mean", "forward_price": "mean"})
+        .reset_index()
+    )
