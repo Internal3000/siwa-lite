@@ -48,7 +48,11 @@ class Chrono24Scraper(BaseScraper):
         # Assuming your logic for marks remains unchanged
         marks = soup.find_all("div", class_="text-sm text-sm-md text-ellipsis m-b-2")
 
-        return titles, prices, marks
+        tags = soup.find_all(
+            "a", class_="js-article-item article-item block-item rcard"
+        )
+
+        return titles, prices, marks, tags
 
 
 def job():
@@ -56,7 +60,10 @@ def job():
     The job to run periodically.
     """
     scraper = Chrono24Scraper()
-    base_url = "https://www.chrono24.com/rolex/index-{}.htm?query=Rolex+Submariner&goal_suggest=1"
+    base_url = (
+        "https://www.chrono24.com/rolex/submariner--mod1-{}.htm?query=Rolex+Submariner"
+    )
+
     scraper.scrape_all_pages(base_url)
     scraper.save_to_csv(filename="chrono24.csv", include_mark=True)
     print("Scraper run complete.")
