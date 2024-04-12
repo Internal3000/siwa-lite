@@ -4,7 +4,7 @@ from typing import Tuple
 import pandas as pd
 from pandas import DataFrame
 
-from VIX.constatns import SPREAD_MULTIPLIER, SPREAD_MIN
+from VIX.constatns import SPREAD_MULTIPLIER, SPREAD_MIN, RANGE_MULT
 
 
 class Filtering:
@@ -34,23 +34,17 @@ class Filtering:
         """
         df = df.copy()
         df.sort_values(by=["symbol", "bid"], inplace=True)
-        df["bid"] = df["bid"].astype(float)
-        df["ask"] = df["ask"].astype(float)
-        df["spread"] = df["ask"] - df["bid"]
-        df = (
-            df.groupby("symbol")
-            .agg(
-                bid=("bid", "max"),
-                ask=("ask", "min"),
-                spread=("spread", "min"),
-                mark_price=("mark_price", "first"),
-                expiry=("expiry", "first"),
-                forward_price=("forward_price", "first"),
-            )
-            .reset_index()
-        )
+        df['spread'] = df['ask'] - df['bid']
 
-        return df[["symbol", "bid", "ask", "mark_price", "expiry", "forward_price"]]
+        consolidated = df.groupby('symbol').agg({'bid': 'max', 'ask': 'min'})
+
+        min_spread_mark = df.loc[df.groupby('symbol')['spread'].idxmin(), ['symbol', 'mark_price']]
+
+        result = consolidated.merge(min_spread_mark, on='symbol')
+
+        result["expiry"] = result["symbol"].apply(lambda x: datetime.strptime(x.split("-")[1], "%y%m%d"))
+
+        return result
 
     @staticmethod
     def filter_near_next_term_options(df, index_maturity_days=30):
@@ -135,49 +129,35 @@ class Filtering:
             combined["mid_price_call"] - combined["mid_price_put"]
         )
         min_diff_strike = combined.loc[combined["mid_price_diff"].idxmin()]
-        forward_price = df["forward_price"].iloc[0]
+        # forward_price = df["forward_price"].iloc[0]
+        forward_price = df.loc[df["strike"] == min_diff_strike["strike"], "mark_price"].mean()
         Fimp = min_diff_strike["strike"] + forward_price * (
             min_diff_strike["mid_price_call"] - min_diff_strike["mid_price_put"]
         )
+        # describe all steps in Fimp calculation
+        print(f"Strike: {min_diff_strike['strike']}")
+        print(f"Forward price: {forward_price}")
+        print(f"Call price: {min_diff_strike['mid_price_call']}")
+        print(f"Put price: {min_diff_strike['mid_price_put']}")
+        print(f"Implied forward price: {Fimp}")
         return Fimp
 
     @staticmethod
     def filter_and_sort_options(df, Fimp):
+        """
+            Set the largest strike that is less than the implied forward Fimp as ATM
+            strike KATM for near and next-term options.
+        """
         KATM = df[df["strike"] < Fimp]["strike"].max()
-        RANGE_MULT = 2.5
+
         Kmin = Fimp / RANGE_MULT
         Kmax = Fimp * RANGE_MULT
-        calls_otm = df[(df["strike"] > KATM) & (df["option_type"] == "C")]
-        puts_otm = df[(df["strike"] < KATM) & (df["option_type"] == "P")]
-        otm_combined = pd.concat([calls_otm, puts_otm])
-        otm_filtered = otm_combined[
-            (otm_combined["strike"] > Kmin) & (otm_combined["strike"] < Kmax)
-        ]
-        otm_sorted = otm_filtered.sort_values(by="strike")
-        tick_size = df[df["bid"] > 0]["bid"].min()
-        consecutive_threshold = 5
-        consecutive_count = 0
-        to_drop = []
 
-        for index, row in otm_sorted.iterrows():
-            if row["bid"] <= tick_size:
-                consecutive_count += 1
-                to_drop.append(index)
-            else:
-                consecutive_count = 0
-            if consecutive_count >= consecutive_threshold:
-                break
-        otm_final = otm_sorted.drop(to_drop)
+        # Select the options with strikes greater than Kmin and less than Kmax
+        filtered_df = df[(df["strike"] > Kmin) & (df["strike"] < Kmax)]
+        sorted_filtered_df = filtered_df.sort_values(by="strike", ascending=True)
 
-        otm_final["Fimp"] = Fimp
-        otm_final["KATM"] = KATM
-
-        current_date = datetime.now()
-        otm_final["years_to_expiry"] = (
-            otm_final["expiry"] - current_date
-        ).dt.days / 365.25
-
-        return otm_final
+        return sorted_filtered_df
 
     def filter(self, options_df: pd.DataFrame) -> tuple[DataFrame, DataFrame]:
         print(f"Length of options: {len(options_df)}")
