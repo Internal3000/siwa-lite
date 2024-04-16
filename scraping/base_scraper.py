@@ -53,7 +53,7 @@ class BaseScraper:
         response = cls.http.get(url, headers=cls.headers)
         base_url = "https://www.chrono24.com"
         if response.status_code == 200:
-            titles, prices, marks, tags = cls.extract_data(
+            titles, prices, marks = cls.extract_data(
                 response
             )  # Unpack the returned tuple
 
@@ -63,18 +63,17 @@ class BaseScraper:
                 title = titles[i].text.strip() if titles else None
                 price = prices[i].text.strip() if prices else None
                 mark = marks[i].text.strip() if marks else None
-                href = tags[i].get("href")
-                full_url = base_url + href
+                # href = tags[i].get("href")
+                # full_url = base_url + href
                 cls.data.append(
                     {
                         "Watch_Name": title,
                         "Price": price,
                         "Watch_Mark": mark,
-                        "URL": full_url,
                     }
                 )
                 logging.info(
-                    f"Name: {title}, Price: {price}, Mark: {mark}, URL: {full_url}"
+                    f"Name: {title}, Price: {price}, Mark: {mark}"
                 )
 
         else:
@@ -134,7 +133,7 @@ class BaseScraper:
         for row in self.data:
             row["Datetime"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        columns = ["Watch_Name", "Price", "Datetime", "URL"]
+        columns = ["Watch_Name", "Price", "Datetime"]
         if include_mark:
             columns.append("Watch_Mark")
 

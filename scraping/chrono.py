@@ -48,11 +48,11 @@ class Chrono24Scraper(BaseScraper):
         # Assuming your logic for marks remains unchanged
         marks = soup.find_all("div", class_="text-sm text-sm-md text-ellipsis m-b-2")
 
-        tags = soup.find_all(
-            "a", class_="js-article-item article-item block-item rcard"
-        )
+        # tags = soup.find_all(
+        #     "a", class_="js-article-item article-item block-item rcard"
+        # )
 
-        return titles, prices, marks, tags
+        return titles, prices, marks
 
 
 def job():
@@ -65,7 +65,7 @@ def job():
     )
 
     scraper.scrape_all_pages(base_url)
-    scraper.save_to_csv(filename="chrono24.csv", include_mark=True)
+    scraper.save_to_csv(filename="chrono.csv", include_mark=True)
     print("Scraper run complete.")
 
 
