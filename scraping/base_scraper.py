@@ -130,8 +130,9 @@ class BaseScraper:
             logging.error("No data to save.")
             return
 
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for row in self.data:
-            row["Datetime"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    row["Datetime"] = now
 
         columns = ["Watch_Name", "Price", "Datetime"]
         if include_mark:
@@ -145,3 +146,4 @@ class BaseScraper:
             df.to_csv(filename, index=False)
 
         logging.info(f"Data appended to {filename}")
+
