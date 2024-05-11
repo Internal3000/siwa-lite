@@ -4,17 +4,14 @@ from base_scraper import BaseScraper
 import schedule
 import time
 
-
 class Chrono24Scraper(BaseScraper):
     """
     A web scraper for extracting watch names and prices from Chrono24.
-
     Attributes:
     ----------
     User_Agent : str
         User agent string for making requests.
     """
-
     User_Agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
     )
@@ -22,7 +19,6 @@ class Chrono24Scraper(BaseScraper):
     def __init__(self) -> None:
         """
         Initializes the LuxuryWatchesScraper class.
-
         Parameters:
         ----------
         None
@@ -48,12 +44,7 @@ class Chrono24Scraper(BaseScraper):
         # Assuming your logic for marks remains unchanged
         marks = soup.find_all("div", class_="text-sm text-sm-md text-ellipsis m-b-2")
 
-        # tags = soup.find_all(
-        #     "a", class_="js-article-item article-item block-item rcard"
-        # )
-
         return titles, prices, marks
-
 
 def job():
     """
@@ -68,8 +59,8 @@ def job():
     scraper.save_to_csv(filename="chrono.csv", include_mark=True)
     print("Scraper run complete.")
 
-
 if __name__ == "__main__":
+    job()  # Run job immediately when script starts.
     # Schedule the job every 10 minutes
     schedule.every(10).minutes.do(job)
 
