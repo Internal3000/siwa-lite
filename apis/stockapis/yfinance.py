@@ -19,7 +19,6 @@ class YahooFinanceAPI(StockAPI):
 
     @staticmethod
     def get_stock_info(ticker):
-        import ipdb; ipdb.set_trace()
         stock = yf.Ticker(ticker)
         return stock.info
 
@@ -45,7 +44,6 @@ class YahooFinanceAPI(StockAPI):
                 except FutureTimeoutError:
                     print(f"Request timed out for ticker: {ticker}")
                     market_caps[ticker] = 0
-
                 except Exception as e:
                     print(f"Error fetching market cap for {ticker}: {e}")
                     market_caps[ticker] = 0
