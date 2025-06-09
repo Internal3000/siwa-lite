@@ -15,7 +15,7 @@ class AAPLVSMSFT(DataFeed):
     DATAPOINT_DEQUE = deque([], maxlen=100)
     TICKER_1 = 'AAPL'
     TICKER_2 = 'MSFT'
-    MCAP_DEQUE = deque([], maxlen=100)
+    MCAP_DEQUE = {}
 
 
     @staticmethod
@@ -31,10 +31,11 @@ class AAPLVSMSFT(DataFeed):
     @staticmethod
     def log(message):
         """
-        Adds timestamp and prints message
+        Adds UTC timestamp and prints message
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{timestamp} UTC] {message}")
+
 
     @classmethod
     def process_source_data_into_siwa_datapoint(cls):
@@ -44,10 +45,9 @@ class AAPLVSMSFT(DataFeed):
         cls.log(colored("New data point\n", 'blue'))
         tickers = [cls.TICKER_1, cls.TICKER_2]
         market_caps = {ticker: [] for ticker in tickers}
+
         apis = [fmp, yfinance, finnhub]
         # apis = [fmp, finnhub]
-
-        
 
         total_sources = len(apis)
         coloured_tickers = ", ".join([colored(t, 'yellow') for t in tickers])
@@ -61,6 +61,7 @@ class AAPLVSMSFT(DataFeed):
             for ticker in tickers:
                 if data.get(ticker, 0) != 0:
                     cls.log(f"{colored(ticker, 'yellow')} data received from {colored(source.source, 'cyan')}: {colored(str(data[ticker]), 'green')}")
+                    cls.MCAP_DEQUE[ticker][source.source].append()
                     market_caps[ticker].append(data.get(ticker, 0))
                 else:
                     cls.log(f"{colored('Warning', 'red')}: No data for {colored(ticker, 'yellow')} from {colored(source.source, 'cyan')}")
