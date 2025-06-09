@@ -91,7 +91,6 @@ class AAPLVSMSFT(DataFeed):
 
         # Logging the no. of sources data has been received per stock
         for ticker in tickers:
-            import ipdb; ipdb.set_trace()
             received = len(market_caps.get(ticker, None))
             color = 'yellow' if received == total_sources else 'red'
             count_str = colored(f'{received}/{total_sources}', color)
