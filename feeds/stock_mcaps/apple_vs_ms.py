@@ -96,7 +96,6 @@ class AAPLVSMSFT(DataFeed):
             count_str = colored(f'{received}/{total_sources}', color)
             cls.log(f"Received data for {colored(ticker, 'yellow')} from {count_str} sources.")
             
-            
             mcaps = market_caps.get(ticker, None)
             # if 3 or more data points received, data is winsorized to remove outliers
             if received >= 3:
