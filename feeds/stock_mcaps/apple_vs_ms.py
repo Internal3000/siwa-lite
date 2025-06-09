@@ -1,5 +1,5 @@
 import numpy as np
-
+from scipy.stats.mstats import winsorize
 from datetime import datetime, timezone
 from termcolor import colored
 from feeds.data_feed import DataFeed
@@ -34,66 +34,30 @@ class AAPLVSMSFT(DataFeed):
         """
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{timestamp} UTC] {message}")
-    
+
     @staticmethod
-    def winsorize_std_dev(x, data_deque, threshold=3):
+    def winsorize(data, percent = 10):
         """
             Winsorize x based on mean += threshold * std of data_deque.
 
             Parameters:
-                x: new received data
-                data_deque: deque of historical values
-                threshold: how many std deviations to cap at (default 3)
+                data: data of values you want to winsorize (at least 3)
+                percent: 100-x% winsorization (default 10)
 
             Returns:
-                Winsorized value of x (capped within the bounds)
+                Winsorized list
         """
-        if len(data_deque) < 2:
-            # Not enough data to calculate mean/std, return x as is
-            return x
-
-        values = np.array(data_deque)
-        mean = np.mean(values)
-        std = np.std(values)
-
-        if std == 0:
-            # All values are the same, cap x at mean
-            return mean
-
-        lower_bound = mean - threshold * std
-        upper_bound = mean + threshold * std
-
-        # Cap x within the bounds
-        if x < lower_bound:
-            return lower_bound
-        elif x > upper_bound:
-            return upper_bound
-        else:
-            return x
-
-    @staticmethod
-    def winsorize_percent(x, data_deque, percent = 10):
-        """
-            Winsorize x based on mean += threshold * std of data_deque.
-
-            Parameters:
-                x: new received data
-                data_deque: deque of historical values
-                percent: 100-x% winsorization
-
-            Returns:
-                Winsorized value of x (capped within the bounds)
-        """
-        if len(data_deque) < data_deque.maxlen:
-            return x  # Not enough data to Winsorize yet
         import ipdb; ipdb.set_trace()
-        lower = np.percentile(data_deque, percent/2)
-        upper = np.percentile(data_deque, 100-percent/2)
+        lower = np.percentile(data, percent/2)
+        upper = np.percentile(data, 100-percent/2)
 
-        winsorized = int(min(max(x, lower), upper))
-        if x != winsorized:
-            print(f"Winsorized! Old: {x}, New: {winsorized}")
-        return winsorized
+        output = []
+        for x in data:
+            cx = min(max(x, lower), upper)
+            # if x != cx:
+            #     print(f"Winsorized! Old: {x}, New: {cx}")
+            output.append(cx)
+        return output
 
     @classmethod
     def process_source_data_into_siwa_datapoint(cls):
@@ -103,7 +67,7 @@ class AAPLVSMSFT(DataFeed):
         cls.log(colored("New data point\n", 'blue'))
         tickers = [cls.TICKER_1, cls.TICKER_2]
         market_caps = {ticker: [] for ticker in tickers}
-        apis = [yfinance, finnhub]
+        apis = [fmp, yfinance, finnhub]
         total_sources = len(apis)
         coloured_tickers = ", ".join([colored(t, 'yellow') for t in tickers])
 
@@ -119,24 +83,32 @@ class AAPLVSMSFT(DataFeed):
                     #import ipdb; ipdb.set_trace()
                     
                     received_data = data.get(ticker, 0)
-                    ticker_api_deque = cls.MCAP_DEQUE[ticker][source.source]
 
-                    winsorized = cls.winsorize_percent(received_data, ticker_api_deque)
-                    
-                    cls.MCAP_DEQUE[ticker][source.source].append(winsorized)
-                    print(cls.MCAP_DEQUE[ticker][source.source])
-                    market_caps[ticker].append(winsorized)
+                    market_caps[ticker].append(received_data)
                 else:
                     cls.log(f"{colored('Warning', 'red')}: No data for {colored(ticker, 'yellow')} from {colored(source.source, 'cyan')}")
             print()
 
         # Logging the no. of sources data has been received per stock
         for ticker in tickers:
+            import ipdb; ipdb.set_trace()
             received = len(market_caps.get(ticker, None))
             color = 'yellow' if received == total_sources else 'red'
             count_str = colored(f'{received}/{total_sources}', color)
             cls.log(f"Received data for {colored(ticker, 'yellow')} from {count_str} sources.")
-
+            
+            
+            mcaps = market_caps.get(ticker, None)
+            # if 3 or more data points received, data is winsorized to remove outliers
+            if received >= 3:
+                # market_caps[ticker] = winsorize(np.array(market_caps.get(ticker, None)), limits=[0.05, 0.05])
+                import ipdb; ipdb.set_trace()
+                market_caps[ticker] = cls.winsorize(market_caps[ticker])
+                if mcaps != market_caps[ticker]:
+                    print(f"Winsorized."
+                          f"\nOld: {mcaps}"
+                          f"\n New: {market_caps[ticker]}")
+                    
         # Error handling for if either of the tickers don't receive any data
         if not market_caps.get(cls.TICKER_1, None) or not market_caps.get(cls.TICKER_2, None):
             cls.log(colored(f"Error: Insufficient data to compute {cls.TICKER_1}/{cls.TICKER_2} ratio", "red"))
