@@ -42,12 +42,13 @@ def start_feeds(feeds):
 
         #print datafeed startup message to CLI
         print(c.start_message(feed))
+        feed.run()
 
         #create new thread *only if* one doesn't already exist
-        if not feed.NAME in datafeed_threads:
-            thread = threading.Thread(target=feed.run)
-            thread.start()
-            datafeed_threads[feed.NAME] = thread
+        #if not feed.NAME in datafeed_threads:
+            #thread = threading.Thread(target=feed.run)
+            #thread.start()
+            #datafeed_threads[feed.NAME] = thread
 
 def stop_feeds(feeds):
     ''' stop *and kill thread for* all feeds in a list '''
