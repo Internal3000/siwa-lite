@@ -1,0 +1,14 @@
+{
+    "FinancialModelingPrep": {
+        "AAPL": 3019570686000,
+        "MSFT": 3528375388800
+    },
+    "YahooFinance": {
+        "AAPL": 3019570675712,
+        "MSFT": 3528375402496
+    },
+    "Finnhub": {
+        "AAPL": 3027043844398,
+        "MSFT": 3500133594726
+    }
+}

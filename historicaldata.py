@@ -44,7 +44,7 @@ merged_df[f"{ticker_1}/{ticker_2}_ratio"] = merged_df[f"market_cap_{ticker_1}"] 
 
 merged_df = merged_df.sort_values("timestamp")
 
-#merged_df.to_csv("market_cap_ratio.csv", index=False)
+merged_df.to_csv("market_cap_ratio.csv", index=False)
 
 fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 
