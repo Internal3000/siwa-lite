@@ -12,7 +12,7 @@ api_key = os.getenv("FMP_API_KEY")
 
 ticker_1 = "AAPL"
 ticker_2 = "MSFT"
-start_date = "2025-03-01"
+start_date = "2024-06-01"
 end_date = "2025-06-01"
 tickers = [ticker_1, ticker_2]
 market_caps = {}
