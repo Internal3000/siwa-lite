@@ -2,6 +2,7 @@ import numpy as np
 import json
 import os
 import copy
+import statistics
 from scipy.stats.mstats import winsorize
 from datetime import datetime, timezone
 from termcolor import colored
@@ -36,8 +37,8 @@ class AAPLVSMSFT(DataFeed):
     @classmethod
     def addstale(cls):
         cls.STALE_DATA_COUNT += 1
-        if cls.STALE_DATA_COUNT > 10: # Change appropriately depending on heartbeat
-            cls.log(f"{colored('WARNING STALE DATA:', 'red') } data has been stale for {cls.STALE_DATA_COUNT} heartbeats")
+        if cls.STALE_DATA_COUNT >= 10: # Change appropriately depending on heartbeat
+            cls.log(f"{colored('WARNING STALE DATA:', 'red') } data has remained the same for {cls.STALE_DATA_COUNT} heartbeats")
 
     @staticmethod
     def log(message):
@@ -134,46 +135,13 @@ class AAPLVSMSFT(DataFeed):
         return market_caps
 
     @classmethod
-    def detect_outliers_3(cls, apis, ticker, market_caps, prev_data, threshold = 0.2):
-        threshold_hit = False
-        for api_1, api_2 in combinations(apis, 2):
-            datapoint_1 = market_caps[api_1][ticker]
-            datapoint_2 = market_caps[api_2][ticker]
-
-            if datapoint_1 == 0 or datapoint_2 == 0:
-                continue
-
-            relative_diff = abs(datapoint_1 - datapoint_2) / min(datapoint_1, datapoint_2)
-            if relative_diff > threshold: 
-                threshold_hit = True
-                break
-        
-        if threshold_hit:   
-            # Stores the smallest "distance" from another value
-            distances = {api : -1 for api in apis}
-
-            # Compare each new data point with eachother
-            for api_1, api_2 in combinations(apis, 2):
-                datapoint_1 = market_caps[api_1][ticker]
-                datapoint_2 = market_caps[api_2][ticker]
-
-                if datapoint_1 == 0 or datapoint_2 == 0:
-                    continue
-
-                diff = abs(datapoint_1 - datapoint_2)
-                
-                for a in (api_1, api_2):
-                    if distances[a] == -1 or diff < distances[a]:
-                        distances[a] = diff
-
-            max = -1
-            outlier_api = ""
-            for api in apis:
-                if distances[api] > max:
-                    max = distances[api]
-                    outlier_api = api
-            cls.log(f"Outlier Removed. Ticker: {ticker}, Source: {api_1}, Value: {market_caps[api_1][ticker]}")
-            market_caps[outlier_api][ticker] = 0 
+    def detect_outliers_3(cls, ticker, market_caps):
+        values = {source: market_caps[source][ticker] for source in market_caps}
+        median_value = statistics.median(values.values())
+        cls.log(f"Using median value: {median_value}")
+        for source in market_caps:
+            if market_caps[source][ticker] != median_value:
+                market_caps[source][ticker] = 0
         return market_caps
 
     @classmethod
@@ -211,11 +179,11 @@ class AAPLVSMSFT(DataFeed):
                 if value != 0:
                     cls.log(f"{colored(ticker, 'yellow')} data received from {colored(source_name, 'cyan')}: {colored(str(data[ticker]), 'green')}")
                     sources_count[ticker] += 1
-                    prev_value = prev_data[source_name].get(ticker,0)
-                    if prev_value != 0 and abs(prev_value - value) / prev_value > 0.5: 
-                        cls.log(f"{colored('WARNING DATA OUT OF THRESHOLD', 'red')}: Ticker: {colored(ticker, 'yellow')}, Source: {colored(source_name, 'cyan')}, Previous Value:{prev_value}, Current Value: {value}")
-                    else:
-                        current_market_caps[source_name][ticker] = value
+                    # prev_value = prev_data[source_name].get(ticker,0)
+                    # if prev_value != 0 and abs(prev_value - value) / prev_value > 0.5: 
+                    #     cls.log(f"{colored('WARNING DATA OUT OF THRESHOLD', 'red')}: Ticker: {colored(ticker, 'yellow')}, Source: {colored(source_name, 'cyan')}, Previous Value:{prev_value}, Current Value: {value}")
+                    # else:
+                    current_market_caps[source_name][ticker] = value
                 else:
                     cls.log(f"{colored('WARNING NO DATA', 'red')}: Ticker: {colored(ticker, 'yellow')}, Source: {colored(source_name, 'cyan')}")
             print()
@@ -230,7 +198,7 @@ class AAPLVSMSFT(DataFeed):
             cls.log(f"Received data for {colored(ticker, 'yellow')} from {count_str} sources.")
             
             if received == 3:
-                no_outliers = cls.detect_outliers_3(api_names, ticker, current_market_caps, prev_data)
+                no_outliers = cls.detect_outliers_3(ticker, current_market_caps)
             elif received == 2:
                 no_outliers = cls.detect_outliers_2(api_names, ticker, current_market_caps, prev_data)
             elif received == 1: 
