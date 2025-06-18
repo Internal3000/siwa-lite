@@ -21,6 +21,7 @@ class AAPLVSMSFT(DataFeed):
     TICKER_1 = 'AAPL'
     TICKER_2 = 'MSFT'
     MCAP_DEQUE = defaultdict(lambda: defaultdict(lambda: deque(maxlen=10)))
+    STALE_DATA_COUNT = 0
 
     @staticmethod
     def average(values):
@@ -32,6 +33,12 @@ class AAPLVSMSFT(DataFeed):
         else:
             return None
     
+    @classmethod
+    def addstale(cls):
+        cls.STALE_DATA_COUNT += 1
+        if cls.STALE_DATA_COUNT > 10: # Change appropriately depending on heartbeat
+            cls.log(f"{colored('WARNING STALE DATA:', 'red') } data has been stale for {cls.STALE_DATA_COUNT} heartbeats")
+
     @staticmethod
     def log(message):
         """
@@ -67,14 +74,26 @@ class AAPLVSMSFT(DataFeed):
         #return winsorize(np.array(data), limits=[percent/2, percent/2])
 
 
-    
-    @staticmethod
-    def detect_outliers_1(apis, ticker, market_cap, prev_data, threshold = 0.2):
-        return None
+    @classmethod
+    def detect_outliers_1(cls, apis, ticker, market_caps, prev_data, threshold = 0.2):
+        # Compare the single data point with previous data
+        for api_1, api_2 in product(apis, repeat = 2):
+            datapoint_1 = market_caps[api_1][ticker]
+            datapoint_2 = prev_data[api_2][ticker]
+
+            if datapoint_1 == 0 or datapoint_2 == 0:
+                continue
+
+            relative_diff = abs(datapoint_1 - datapoint_2) / min(datapoint_1, datapoint_2)
+            if relative_diff > threshold: 
+                cls.log(f"Outlier Removed. Ticker: {ticker}, Source: {api_1}, Value: {market_caps[api_1][ticker]}")
+                market_caps[api_1][ticker] = 0
+                return market_caps
+        return market_caps
 
 
-    @staticmethod
-    def detect_outliers_2(apis, ticker, market_caps, prev_data, threshold = 0.2):
+    @classmethod
+    def detect_outliers_2(cls, apis, ticker, market_caps, prev_data, threshold = 0.2):
         threshold_hit = False
         for api_1, api_2 in combinations(apis, 2):
             datapoint_1 = market_caps[api_1][ticker]
@@ -90,7 +109,7 @@ class AAPLVSMSFT(DataFeed):
         
         if threshold_hit:                            
             distances = {api : -1 for api in apis}
-
+            # Compare the new data points to each previous data point
             for api_new, api_prev in product(apis, repeat = 2):
                 datapoint_1 = market_caps[api_new][ticker]
                 datapoint_2 = prev_data[api_prev][ticker]
@@ -103,18 +122,19 @@ class AAPLVSMSFT(DataFeed):
                 if diff < distances[api_new] or distances[api_new] == -1:
                     distances[api_new] = diff
             
-            max = 0
+            max = -1
             outlier_api = ""
             for api in apis:
                 if distances[api] > max:
                     max = distances[api]
                     outlier_api = api
+            cls.log(f"Outlier Removed. Ticker: {ticker}, Source: {outlier_api}, Value: {market_caps[outlier_api][ticker]}")
             market_caps[outlier_api][ticker] = 0 
 
         return market_caps
 
-    @staticmethod
-    def detect_outliers_3(apis, ticker, market_caps, prev_data, threshold = 0.2):
+    @classmethod
+    def detect_outliers_3(cls, apis, ticker, market_caps, prev_data, threshold = 0.2):
         threshold_hit = False
         for api_1, api_2 in combinations(apis, 2):
             datapoint_1 = market_caps[api_1][ticker]
@@ -129,8 +149,10 @@ class AAPLVSMSFT(DataFeed):
                 break
         
         if threshold_hit:   
+            # Stores the smallest "distance" from another value
             distances = {api : -1 for api in apis}
 
+            # Compare each new data point with eachother
             for api_1, api_2 in combinations(apis, 2):
                 datapoint_1 = market_caps[api_1][ticker]
                 datapoint_2 = market_caps[api_2][ticker]
@@ -140,21 +162,20 @@ class AAPLVSMSFT(DataFeed):
 
                 diff = abs(datapoint_1 - datapoint_2)
                 
-                if diff < distances[api_1] or distances[api_2] == -1:
-                    distances[api_1] = diff
-            
-            max = 0
+                for a in (api_1, api_2):
+                    if distances[a] == -1 or diff < distances[a]:
+                        distances[a] = diff
+
+            max = -1
             outlier_api = ""
             for api in apis:
                 if distances[api] > max:
                     max = distances[api]
                     outlier_api = api
+            cls.log(f"Outlier Removed. Ticker: {ticker}, Source: {api_1}, Value: {market_caps[api_1][ticker]}")
             market_caps[outlier_api][ticker] = 0 
         return market_caps
 
-
-
-    
     @classmethod
     def process_source_data_into_siwa_datapoint(cls):
         """
@@ -164,9 +185,9 @@ class AAPLVSMSFT(DataFeed):
         tickers = [cls.TICKER_1, cls.TICKER_2]
         apis = [fmp, yfinance, finnhub]
         total_sources = len(apis)
+        sources_count = {ticker: 0 for ticker in tickers}
         coloured_tickers = ", ".join([colored(t, 'yellow') for t in tickers])
 
-        market_caps = {ticker: [] for ticker in tickers}
         current_market_caps = {api().source : {ticker: 0 for ticker in tickers} for api in apis}
 
         # opens last valid data
@@ -189,47 +210,56 @@ class AAPLVSMSFT(DataFeed):
                 value = data.get(ticker, 0)
                 if value != 0:
                     cls.log(f"{colored(ticker, 'yellow')} data received from {colored(source_name, 'cyan')}: {colored(str(data[ticker]), 'green')}")
-                    
+                    sources_count[ticker] += 1
                     prev_value = prev_data[source_name].get(ticker,0)
                     if prev_value != 0 and abs(prev_value - value) / prev_value > 0.5: 
                         cls.log(f"{colored('WARNING DATA OUT OF THRESHOLD', 'red')}: Ticker: {colored(ticker, 'yellow')}, Source: {colored(source_name, 'cyan')}, Previous Value:{prev_value}, Current Value: {value}")
                     else:
                         current_market_caps[source_name][ticker] = value
-                        market_caps[ticker].append(value)
                 else:
                     cls.log(f"{colored('WARNING NO DATA', 'red')}: Ticker: {colored(ticker, 'yellow')}, Source: {colored(source_name, 'cyan')}")
             print()
 
+        no_outliers = {api().source : {ticker: 0 for ticker in tickers} for api in apis}
+
         # Logging the no. of sources data has been received per stock
         for ticker in tickers:
-            received = len(market_caps.get(ticker, None))
+            received = sources_count[ticker]
             color = 'yellow' if received == total_sources else 'red'
             count_str = colored(f'{received}/{total_sources}', color)
             cls.log(f"Received data for {colored(ticker, 'yellow')} from {count_str} sources.")
             
-            if received >= 3:
-                current_market_caps = cls.detect_outliers_3(api_names, ticker, current_market_caps, prev_data)
+            if received == 3:
+                no_outliers = cls.detect_outliers_3(api_names, ticker, current_market_caps, prev_data)
             elif received == 2:
-                current_market_caps = cls.detect_outliers_2(api_names, ticker, current_market_caps, prev_data)
-            else: # 1 received
-                current_market_caps = cls.detect_outliers_1(api_names, ticker, current_market_caps, prev_data)
+                no_outliers = cls.detect_outliers_2(api_names, ticker, current_market_caps, prev_data)
+            elif received == 1: 
+                no_outliers = cls.detect_outliers_1(api_names, ticker, current_market_caps, prev_data)
         
         # Converts to list for calculating avg
         outlier_removed_market_caps = {ticker: [] for ticker in tickers}
         for ticker in tickers:
             for api in api_names:
-                if current_market_caps[api][ticker] != 0:
+                if no_outliers[api][ticker] != 0:
                     outlier_removed_market_caps[ticker].append(current_market_caps[api][ticker])
 
-        # Error handling for if either of the tickers don't receive any data
+        for ticker in tickers: 
+            received = len(outlier_removed_market_caps[ticker])
+            color = 'yellow' if received == total_sources else 'red'
+            count_str = colored(f'{received}/{total_sources}', color)
+            cls.log(f"Computing ratio for {colored(ticker, 'yellow')} from {count_str} sources.")
+            
+
+        # Error handling for if either of the tickers don't have any final data
         if not outlier_removed_market_caps.get(cls.TICKER_1, None) or not outlier_removed_market_caps.get(cls.TICKER_2, None):
             cls.log(colored(f"Error: Insufficient data to compute {cls.TICKER_1}/{cls.TICKER_2} ratio", "red"))
+            cls.addstale()
             return cls.DATAPOINT_DEQUE[-1]
         
         ticker_1_avg = cls.average(outlier_removed_market_caps.get(cls.TICKER_1, None))
         ticker_2_avg = cls.average(outlier_removed_market_caps.get(cls.TICKER_2, None))
 
-        # Saving last valid data to json file (to be used next heartbeat)
+        # Saving data to json file (to be used next heartbeat)
         file_path = os.path.join("api_logs", f"market_cap_data.json")
         os.makedirs("api_logs", exist_ok=True)
         with open(file_path, "w") as f:
@@ -240,6 +270,10 @@ class AAPLVSMSFT(DataFeed):
             ratio = ticker_1_avg / ticker_2_avg
             cls.log(f"{cls.TICKER_1}/{cls.TICKER_2} ratio: {colored(f'{ratio:.4f}', 'magenta')}")
             print()
+            if cls.DATAPOINT_DEQUE and ratio == cls.DATAPOINT_DEQUE[-1]:
+                cls.addstale()
+            else:
+                cls.STALE_DATA_COUNT = 0
             return ratio
         else:
             cls.log(colored(f"Error: Insufficient data to compute {cls.TICKER_1}/{cls.TICKER_2} ratio", "red"))
