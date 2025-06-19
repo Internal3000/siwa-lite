@@ -54,20 +54,7 @@ class TestAAPLVSMSFT(unittest.TestCase):
                     }
         
         result = AAPLVSMSFT.detect_outliers_3("AAPL", new_data)
-        self.assertEqual(result,{
-                                    "FinancialModelingPrep": {
-                                        "AAPL": 101,
-                                        "MSFT": 0
-                                    },
-                                    "YahooFinance": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    },
-                                    "Finnhub": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    }
-                                })
+        self.assertEqual(result,[101])
         
     def test_detect_outlier_2(self):
         """Test outlier detection with outlier data."""
@@ -102,20 +89,7 @@ class TestAAPLVSMSFT(unittest.TestCase):
                     }
         
         result = AAPLVSMSFT.detect_outliers_2(apis, "AAPL", new_data, prev_data)
-        self.assertEqual(result,{
-                                    "FinancialModelingPrep": {
-                                        "AAPL": 101,
-                                        "MSFT": 0
-                                    },
-                                    "YahooFinance": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    },
-                                    "Finnhub": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    }
-                                })
+        self.assertEqual(result,[101])
 
     def test_detect_outlier_1(self):
         """Test outlier detection with 1 outlier, 1 data point"""
@@ -150,20 +124,7 @@ class TestAAPLVSMSFT(unittest.TestCase):
                     }
         
         result = AAPLVSMSFT.detect_outliers_1(apis, "AAPL", new_data, prev_data)
-        self.assertEqual(result,{
-                                    "FinancialModelingPrep": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    },
-                                    "YahooFinance": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    },
-                                    "Finnhub": {
-                                        "AAPL": 0,
-                                        "MSFT": 0
-                                    }
-                                })
+        self.assertEqual(result,[])
         
     
     @patch("builtins.open", new_callable=mock_open, read_data='''{
@@ -203,11 +164,12 @@ class TestAAPLVSMSFT(unittest.TestCase):
         "YahooFinance": {"AAPL": 100, "MSFT": 100},
         "Finnhub": {"AAPL": 100, "MSFT": 100}
     }''')
+    @patch("json.dump")
     @patch("feeds.stock_mcaps.apple_vs_ms.fmp")
     @patch("feeds.stock_mcaps.apple_vs_ms.finnhub")
     @patch("feeds.stock_mcaps.apple_vs_ms.yfinance")
     def test_process_siwa_3_data_points_outlier(
-        self, mock_yfinance, mock_finnhub, mock_fmp, mock_file
+        self, mock_yfinance, mock_finnhub, mock_fmp, mock_json_dump, mock_file
     ):
         '''Test feed with normal 2 normal data with 1 outlier'''
         aapl = [99.5, 103, 42069]
@@ -223,36 +185,14 @@ class TestAAPLVSMSFT(unittest.TestCase):
 
         result = AAPLVSMSFT.process_source_data_into_siwa_datapoint()
 
-        expected_aapl_avg = aapl[1]
-        expected_msft_avg = msft[1]
-        expected_ratio = expected_aapl_avg / expected_msft_avg
-
-        self.assertEqual(result, expected_ratio)
-    
-    @patch("builtins.open", new_callable=mock_open, read_data='''{
-        "FinancialModelingPrep": {"AAPL": 100, "MSFT": 100},
-        "YahooFinance": {"AAPL": 100, "MSFT": 100},
-        "Finnhub": {"AAPL": 100, "MSFT": 100}
-    }''')
-    @patch("feeds.stock_mcaps.apple_vs_ms.fmp")
-    @patch("feeds.stock_mcaps.apple_vs_ms.finnhub")
-    @patch("feeds.stock_mcaps.apple_vs_ms.yfinance")
-    def test_process_siwa_3_data_points_outlier(
-        self, mock_yfinance, mock_finnhub, mock_fmp, mock_file
-    ):
-        '''Test feed with normal 2 normal data with 1 outlier'''
-        aapl = [99.5, 103, 42069]
-        msft = [100.5, 100, 99]
-
-        mock_fmp.return_value.get_market_cap_of_stocks.return_value = {"AAPL": aapl[0], "MSFT": msft[0]}
-        mock_yfinance.return_value.get_market_cap_of_stocks.return_value = {"AAPL": aapl[1], "MSFT": msft[1]}
-        mock_finnhub.return_value.get_market_cap_of_stocks.return_value = {"AAPL": aapl[2], "MSFT": msft[2]}
-
-        mock_fmp.return_value.source = 'FinancialModelingPrep'
-        mock_finnhub.return_value.source = 'Finnhub'
-        mock_yfinance.return_value.source = 'YahooFinance'
-
-        result = AAPLVSMSFT.process_source_data_into_siwa_datapoint()
+        expected_written = {
+            "FinancialModelingPrep": {"AAPL": 99.5, "MSFT": 100.5},
+            "YahooFinance": {"AAPL": 103, "MSFT": 100},
+            "Finnhub": {"AAPL": 42069, "MSFT": 99}
+        }
+        mock_json_dump.assert_called_once()
+        args, kwargs = mock_json_dump.call_args
+        self.assertEqual(args[0], expected_written)
 
         expected_aapl_avg = aapl[1]
         expected_msft_avg = msft[1]
@@ -347,8 +287,10 @@ class TestAAPLVSMSFT(unittest.TestCase):
         mock_finnhub.return_value.source = 'Finnhub'
         mock_yfinance.return_value.source = 'YahooFinance'
 
+
         result = AAPLVSMSFT.process_source_data_into_siwa_datapoint()
 
+        
         self.assertEqual(result, 42069)
 
 

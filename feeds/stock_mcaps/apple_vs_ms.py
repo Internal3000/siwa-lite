@@ -1,9 +1,6 @@
-import numpy as np
 import json
 import os
-import copy
 import statistics
-from scipy.stats.mstats import winsorize
 from datetime import datetime, timezone
 from termcolor import colored
 from feeds.data_feed import DataFeed
@@ -48,33 +45,6 @@ class AAPLVSMSFT(DataFeed):
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         print(f"[{timestamp} UTC] {message}")
 
-    @staticmethod
-    def winsorize(data, percent = 0.4):
-        """
-            Winsorize x based on mean += threshold * std of data_deque.
-
-            Parameters:
-                data: data of values you want to winsorize (at least 3)
-                percent: 100-x% winsorization (default 10)
-
-            Returns:
-                Winsorized list
-        """
-        lower = np.percentile(data, percent/2)
-        upper = np.percentile(data, 100-percent/2)
-
-        output = []
-        for x in data:
-            cx = min(max(x, lower), upper)
-            # if x != cx:
-            #     print(f"Winsorized! Old: {x}, New: {cx}")
-            output.append(cx)
-        return output
-    
-
-        #return winsorize(np.array(data), limits=[percent/2, percent/2])
-
-
     @classmethod
     def detect_outliers_1(cls, apis, ticker, market_caps, prev_data, threshold = 0.2):
         # Compare the single data point with previous data
@@ -84,13 +54,13 @@ class AAPLVSMSFT(DataFeed):
 
             if datapoint_1 == 0 or datapoint_2 == 0:
                 continue
-
+            
             relative_diff = abs(datapoint_1 - datapoint_2) / min(datapoint_1, datapoint_2)
             if relative_diff > threshold: 
                 cls.log(f"Outlier Removed. Ticker: {ticker}, Source: {api_1}, Value: {market_caps[api_1][ticker]}")
-                market_caps[api_1][ticker] = 0
-                return market_caps
-        return market_caps
+                return []
+            else:
+                return [market_caps[api_1][ticker]]
 
 
     @classmethod
@@ -130,19 +100,22 @@ class AAPLVSMSFT(DataFeed):
                     max = distances[api]
                     outlier_api = api
             cls.log(f"Outlier Removed. Ticker: {ticker}, Source: {outlier_api}, Value: {market_caps[outlier_api][ticker]}")
-            market_caps[outlier_api][ticker] = 0 
-
-        return market_caps
+            for a in apis:
+                if market_caps[a][ticker] != 0 and api != outlier_api:
+                    return [market_caps[a][ticker]]
+        else:
+            val = []
+            for a in apis:
+                if market_caps[a][ticker] != 0:
+                    val.append([market_caps[a][ticker]])
+            return val
 
     @classmethod
     def detect_outliers_3(cls, ticker, market_caps):
         values = {source: market_caps[source][ticker] for source in market_caps}
         median_value = statistics.median(values.values())
         cls.log(f"Using median value: {median_value}")
-        for source in market_caps:
-            if market_caps[source][ticker] != median_value:
-                market_caps[source][ticker] = 0
-        return market_caps
+        return [median_value]
 
     @classmethod
     def process_source_data_into_siwa_datapoint(cls):
@@ -191,6 +164,8 @@ class AAPLVSMSFT(DataFeed):
         no_outliers = {api().source : {ticker: 0 for ticker in tickers} for api in apis}
 
         # Logging the no. of sources data has been received per stock
+        outlier_removed_market_caps = {ticker: [] for ticker in tickers}
+
         for ticker in tickers:
             received = sources_count[ticker]
             color = 'yellow' if received == total_sources else 'red'
@@ -198,19 +173,12 @@ class AAPLVSMSFT(DataFeed):
             cls.log(f"Received data for {colored(ticker, 'yellow')} from {count_str} sources.")
             
             if received == 3:
-                no_outliers = cls.detect_outliers_3(ticker, current_market_caps)
+                outlier_removed_market_caps[ticker] = cls.detect_outliers_3(ticker, current_market_caps)
             elif received == 2:
-                no_outliers = cls.detect_outliers_2(api_names, ticker, current_market_caps, prev_data)
+                outlier_removed_market_caps[ticker] = cls.detect_outliers_2(api_names, ticker, current_market_caps, prev_data)
             elif received == 1: 
-                no_outliers = cls.detect_outliers_1(api_names, ticker, current_market_caps, prev_data)
+                outlier_removed_market_caps[ticker] = cls.detect_outliers_1(api_names, ticker, current_market_caps, prev_data)
         
-        # Converts to list for calculating avg
-        outlier_removed_market_caps = {ticker: [] for ticker in tickers}
-        for ticker in tickers:
-            for api in api_names:
-                if no_outliers[api][ticker] != 0:
-                    outlier_removed_market_caps[ticker].append(current_market_caps[api][ticker])
-
         for ticker in tickers: 
             received = len(outlier_removed_market_caps[ticker])
             color = 'yellow' if received == total_sources else 'red'
@@ -232,6 +200,7 @@ class AAPLVSMSFT(DataFeed):
         os.makedirs("api_logs", exist_ok=True)
         with open(file_path, "w") as f:
             json.dump(current_market_caps, f, indent=4)
+
         cls.log(colored(f"API results logged to {file_path}", "blue"))
 
         if ticker_1_avg and ticker_2_avg:
