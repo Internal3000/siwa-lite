@@ -58,7 +58,6 @@ class TestAAPLVSMSFT(unittest.TestCase):
         
     def test_detect_outlier_2(self):
         """Test outlier detection with outlier data."""
-        apis = ["FinancialModelingPrep", "YahooFinance", "Finnhub"]
         prev_data = {
                         "FinancialModelingPrep": {
                             "AAPL": 100,
@@ -88,12 +87,11 @@ class TestAAPLVSMSFT(unittest.TestCase):
                         }
                     }
         
-        result = AAPLVSMSFT.detect_outliers_2(apis, "AAPL", new_data, prev_data)
+        result = AAPLVSMSFT.detect_outliers_2("AAPL", new_data, prev_data)
         self.assertEqual(result,[101])
 
     def test_detect_outlier_1(self):
         """Test outlier detection with 1 outlier, 1 data point"""
-        apis = ["FinancialModelingPrep", "YahooFinance", "Finnhub"]
         prev_data = {
                         "FinancialModelingPrep": {
                             "AAPL": 100,
@@ -123,7 +121,7 @@ class TestAAPLVSMSFT(unittest.TestCase):
                         }
                     }
         
-        result = AAPLVSMSFT.detect_outliers_1(apis, "AAPL", new_data, prev_data)
+        result = AAPLVSMSFT.detect_outliers_1("AAPL", new_data, prev_data)
         self.assertEqual(result,[])
         
     
@@ -208,7 +206,7 @@ class TestAAPLVSMSFT(unittest.TestCase):
     @patch("feeds.stock_mcaps.apple_vs_ms.fmp")
     @patch("feeds.stock_mcaps.apple_vs_ms.finnhub")
     @patch("feeds.stock_mcaps.apple_vs_ms.yfinance")
-    def test_process_siwa_2_data_points_outlier(
+    def test_process_siwa_2_data_points(
         self, mock_yfinance, mock_finnhub, mock_fmp, mock_file
     ):
         '''Test feed with normal 2 normal data'''
